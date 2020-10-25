@@ -12,6 +12,7 @@ object FMain: TFMain
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
+  KeyPreview = True
   Padding.Left = 5
   Padding.Top = 5
   Padding.Right = 5
@@ -19,6 +20,7 @@ object FMain: TFMain
   OldCreateOrder = False
   OnClose = FormClose
   OnCreate = FormCreate
+  OnKeyDown = FormKeyDown
   PixelsPerInch = 96
   TextHeight = 13
   object Sh_Tablero: TShape
@@ -2846,6 +2848,7 @@ object FMain: TFMain
     Font.Style = []
     ParentFont = False
     TabOrder = 0
+    TabStop = False
     OnClick = Bt_NuevaPartidaClick
   end
   object Panel1: TPanel
@@ -2908,18 +2911,23 @@ object FMain: TFMain
       ParentFont = False
     end
   end
-  object Panel2: TPanel
+  object Pn_Info: TPanel
     Left = 5
     Top = 678
     Width = 583
     Height = 40
     Align = alBottom
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -16
+    Font.Name = 'Tahoma'
+    Font.Style = []
+    ParentFont = False
     TabOrder = 2
-    ExplicitTop = 679
   end
   object Timer: TTimer
     Enabled = False
-    Interval = 500
+    Interval = 100
     OnTimer = TimerTimer
     Left = 216
     Top = 56

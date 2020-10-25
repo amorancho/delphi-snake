@@ -8,6 +8,8 @@ uses
 
 type
 
+  TPartidaEstado = (peInicio, pePartida, peDerrota, pePausa);
+
   TDirection = (dUp, dDown, dLeft, dRight);
 
   TFMain = class(TForm)
@@ -418,12 +420,13 @@ type
     Shape398: TShape;
     Shape399: TShape;
     Shape400: TShape;
-    Panel2: TPanel;
+    Pn_Info: TPanel;
     Timer: TTimer;
     procedure Bt_NuevaPartidaClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure TimerTimer(Sender: TObject);
+    procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
   private
     { Private declarations }
 
@@ -431,18 +434,22 @@ type
     NumCells: integer;
     Snake: TList<integer>;
     FreePositions: TList<integer>;
-    Direction: TDirection;
+    Direction, NextDir: TDirection;
+    Estado: TPartidaEstado;
+    BestScore, Puntuation: integer;
 
     Pill_X: integer;
     Pill_Y: integer;
+    Pill:   integer;
 
     procedure Initialize;
     procedure PlacePill;
     procedure PrintBoard;
 
     function GetNumberByXY(X, Y: integer): integer;
-    procedure GetXYByNumber(Number: integer; var X, Y: integer);
     procedure SetFreePositions;
+
+    procedure SetPuntuation;
   public
     { Public declarations }
   end;
@@ -461,30 +468,123 @@ uses
 
 procedure TFMain.Bt_NuevaPartidaClick(Sender: TObject);
 begin
+  ActiveControl := nil;
   Initialize;
 end;
 
 procedure TFMain.FormClose(Sender: TObject; var Action: TCloseAction);
+var
+  BestScoreFile: TStringList;
+  FileName: string;
 begin
   Snake.Free;
   FreePositions.Free;
+
+  FileName := 'BestScore.txt';
+
+  BestScoreFile := TStringList.Create;
+  try
+
+    BestScoreFile.LineBreak := '';
+    BestScoreFile.Text := BestScore.ToString;
+    BestScoreFile.SaveToFile(FileName);
+
+  finally
+    BestScoreFile.Free;
+  end;
+
 end;
 
 procedure TFMain.FormCreate(Sender: TObject);
+var
+  BestScoreFile: TStringList;
+  FileName: string;
 begin
   Snake         := TList<integer>.Create;
   FreePositions := TList<integer>.Create;
+  Estado        := peInicio;
+
+  Pn_Info.Caption := 'Pulsa "Nueva Partida" o presiona la barra espaciadora para iniciar una partida';
+
+  FileName := 'BestScore.txt';
+
+  BestScoreFile := TStringList.Create;
+  try
+
+    BestScoreFile.LineBreak := '';
+
+    //
+    // Si no existe el fichero de BestScore lo creamos
+    //
+    if not FileExists(FileName) then
+    begin
+
+      BestScoreFile.Text := '0';
+      BestScoreFile.SaveToFile(FileName);
+      BestScore := 0;
+
+    end
+    else
+    begin
+
+      BestScoreFile.LoadFromFile(FileName);
+      BestScore := StrToInt(BestScoreFile.Text);
+
+    end;
+
+  finally
+    BestScoreFile.Free;
+  end;
+
+  SetPuntuation;
+
+end;
+
+procedure TFMain.FormKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+
+  Pn_Info.Caption := '';
+
+  if (Key = VK_UP) and ((Direction = dLeft) or (Direction = dRight)) then
+    NextDir := dUp;
+
+  if (Key = VK_DOWN) and ((Direction = dLeft) or (Direction = dRight)) then
+    NextDir := dDown;
+
+  if (Key = VK_LEFT) and ((Direction = dUp) or (Direction = dDown)) then
+    NextDir := dLeft;
+
+  if (Key = VK_RIGHT) and ((Direction = dUp) or (Direction = dDown)) then
+    NextDir := dRight;
+
+  if ((Estado = peInicio) or (Estado = peDerrota)) and (Key = VK_SPACE) then
+  begin
+
+    Initialize;
+
+  end
+  else if (Estado = pePartida) and (Key = VK_SPACE) then
+  begin
+
+    Timer.Enabled := false;
+    Estado := pePausa;
+    Pn_Info.Caption := '¡Juego pausado!';
+
+  end
+  else if (Estado = pePausa) and (Key = VK_SPACE) then
+  begin
+
+    Timer.Enabled := true;
+    Estado := pePartida;
+
+  end;
+
 end;
 
 function TFMain.GetNumberByXY(X, Y: integer): integer;
 begin
   result := ((Y * Dim) - Dim + X);
-end;
-
-procedure TFMain.GetXYByNumber(Number: integer; var X, Y: integer);
-begin
-  Y := Trunc(Number/(Dim) + 1);
-  X := Number Mod Dim;
 end;
 
 procedure TFMain.Initialize;
@@ -497,11 +597,16 @@ begin
   Snake.Add(GetNumberByXY(10, 10));
   SetFreePositions;
 
-  Direction := dRight;
+  NextDir := dRight;
 
   PlacePill;
 
   PrintBoard;
+
+  Puntuation := 0;
+  SetPuntuation;
+
+  Estado := pePartida;
 
   Timer.Enabled := true;
 
@@ -516,7 +621,7 @@ begin
 
   Pos := Random(FreePositions.Count);
 
-  GetXYByNumber(FreePositions[Pos], Pill_X, Pill_Y);
+  Pill := FreePositions[Pos];
 
 end;
 
@@ -535,9 +640,7 @@ begin
     if not Snake.Contains(I) then
     begin
 
-      GetXYByNumber(I, X, Y);
-
-      if (X = Pill_X) and (Y = Pill_Y) then
+      if (I = Pill) then
         Celda.Brush.Color := clFuchsia
       else
         Celda.Brush.Color := clSilver;
@@ -570,27 +673,71 @@ begin
 
 end;
 
+procedure TFMain.SetPuntuation;
+begin
+  Lb_Puntuacion.Caption := Puntuation.ToString;
+  Lb_MejorPuntuacion.Caption:= BestScore.ToString;
+end;
+
 procedure TFMain.TimerTimer(Sender: TObject);
 var
-  Head_Pos_X: integer;
-  Head_Pos_Y: integer;
-  Next_Pos_X: integer;
-  Next_Pos_Y: integer;
+
+  NextPos: integer;
+
+  NewPosHead: integer;
+  LastPosSnake: integer;
 
   I: integer;
 begin
 
-  GetXYByNumber(Snake[0], Head_Pos_X, Head_Pos_Y);
+  Direction := NextDir;
 
   if Direction = dRight then
   begin
 
-    if Head_Pos_X = Dim then
-      Next_Pos_X := 1
+    if (Snake[0] mod Dim) = 0 then
+      NextPos := Snake[0] - Dim + 1
     else
-      Next_Pos_X := Head_Pos_X + 1;
+      NextPos := Snake[0] + 1;
 
-    Next_Pos_Y := Head_Pos_Y;
+  end
+  else if Direction = dLeft then
+  begin
+
+    if (Snake[0] mod Dim) = 1 then
+      NextPos := Snake[0] + (Dim - 1)
+    else
+      NextPos := Snake[0] - 1;
+  end
+  else if Direction = dUp then
+  begin
+
+    if (Snake[0] > 0) and (Snake[0] <= Dim)  then
+      NextPos := (Dim * (Dim-1)) + (Snake[0] mod Dim)
+    else
+      NextPos := Snake[0] - Dim;
+  end
+  else if Direction = dDown then
+  begin
+
+    if (Snake[0] > Dim*(Dim-1)) and (Snake[0] <= (Dim*Dim)) then
+      NextPos := Snake[0] mod Dim
+    else
+      NextPos := Snake[0] + Dim;
+
+  end;
+
+  if Snake.Contains(NextPos) then
+  begin
+    Timer.Enabled := false;
+    Estado := peDerrota;
+    Pn_Info.Caption := 'Has perdido! :('
+  end
+  else
+  begin
+
+    if NextPos = Pill then
+      LastPosSnake := Snake.Items[Snake.Count - 1];
 
     for I := Snake.Count - 1 downto 0 do
     begin
@@ -598,7 +745,21 @@ begin
       if I > 0 then
         Snake.Items[I] := Snake.Items[I - 1]
       else
-        Snake.Items[I] := GetNumberByXY(Next_Pos_X, Next_Pos_Y);
+        Snake.Items[I] := NextPos;
+
+    end;
+
+    if NextPos = Pill then
+    begin
+
+      Snake.Add(LastPosSnake);
+      PlacePill;
+      Puntuation := Puntuation + 10;
+
+      if Puntuation > BestScore then
+        BestScore := Puntuation;
+
+      SetPuntuation;
 
     end;
 
@@ -606,7 +767,6 @@ begin
 
   PrintBoard;
   SetFreePositions;
-  //PlacePill;
 
 end;
 
